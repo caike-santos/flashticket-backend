@@ -47,6 +47,12 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
+        <!-- TÓPICO (Fase 3): GraphQL e Solução de Queries N+1 com @BatchMapping (DataLoader) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-graphql</artifactId>
+        </dependency>
+
         <!-- TÓPICO (Fase 2): Persistência Relacional, Transações ACID e Locks (JPA/Hibernate) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

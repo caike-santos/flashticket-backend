@@ -1,0 +1,56 @@
+# =============================================================================
+# TÓPICO (Fase 3): Schema GraphQL e Demonstração Prática de Queries N+1
+# =============================================================================
+
+type Query {
+    """
+    ❌ DEMONSTRAÇÃO DO PROBLEMA N+1:
+    Busca todos os eventos (1 query) e depois faz 1 SELECT separado na tabela ticket_orders
+    para CADA evento retornado (N queries) -> Total = N + 1 queries no banco!
+    """
+    eventsWithNPlusOneProblem: [EventWithNPlusOne!]!
+
+    """
+    ✅ SOLUÇÃO COM @BatchMapping (DataLoader):
+    Busca todos os eventos (1 query) e agrupa os IDs de todos os eventos para buscar
+    todos os pedidos de uma vez só com WHERE event_id IN (...) (1 query) -> Total = SEMPRE 2 queries!
+    """
+    eventsOptimized: [EventGraph!]!
+
+    """
+    Busca um evento específico por ID via GraphQL
+    """
+    eventById(id: ID!): EventGraph
+}
+
+type EventWithNPlusOne {
+    id: ID!
+    title: String!
+    category: String!
+    availableTickets: Int!
+    finalPrice: Float!
+    orders: [TicketOrderGraph!]!
+}
+
+type EventGraph {
+    id: ID!
+    title: String!
+    description: String!
+    category: String!
+    totalCapacity: Int!
+    availableTickets: Int!
+    basePrice: Float!
+    platformFee: Float!
+    finalPrice: Float!
+    orders: [TicketOrderGraph!]!
+}
+
+type TicketOrderGraph {
+    id: ID!
+    eventId: ID!
+    customerEmail: String!
+    quantity: Int!
+    unitPrice: Float!
+    totalAmount: Float!
+    status: String!
+}

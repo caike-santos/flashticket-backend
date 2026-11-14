@@ -26,6 +26,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        session_factory:
+          statement_inspector: com.flashticket.infrastructure.persistence.jpa.HibernateSqlCounter
+
+  # TÓPICO (Fase 3): GraphQL e interface interativa GraphiQL (/graphiql)
+  graphql:
+    path: /graphql
+    graphiql:
+      enabled: true
 
 server:
   port: 8080

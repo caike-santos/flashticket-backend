@@ -184,3 +184,52 @@ Content-Type: application/json
 
 GET {{baseUrl}}/api/v2/orders?customerEmail=caike@flashticket.com
 Accept: application/json
+
+
+### ============================================================================
+### 16. FASE 3 - ZERAR O CONTADOR DE QUERIES SQL (Antes de testar o N+1)
+### ============================================================================
+
+POST {{baseUrl}}/api/v2/diagnostics/sql-counter/reset
+
+### ============================================================================
+### 17. FASE 3 - GRAPHQL COM PROBLEMA DE QUERIES N+1 (@SchemaMapping individual)
+### Dispara 1 SELECT para eventos + N SELECTs para cada pedido (N+1 queries!)
+### ============================================================================
+
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+
+{
+  "query": "query { eventsWithNPlusOneProblem { id title category availableTickets finalPrice orders { id customerEmail quantity totalAmount status } } }"
+}
+
+### ============================================================================
+### 18. FASE 3 - VER QUANTOS SELECTs FORAM EXECUTADOS NO BANCO (Veja o N+1!)
+### ============================================================================
+
+GET {{baseUrl}}/api/v2/diagnostics/sql-counter
+Accept: application/json
+
+### ============================================================================
+### 19. FASE 3 - ZERAR O CONTADOR E TESTAR A SOLUÇÃO COM @BatchMapping (DataLoader)
+### ============================================================================
+
+POST {{baseUrl}}/api/v2/diagnostics/sql-counter/reset
+
+###
+
+POST {{baseUrl}}/graphql
+Content-Type: application/json
+
+{
+  "query": "query { eventsOptimized { id title description category availableTickets basePrice platformFee finalPrice orders { id customerEmail quantity totalAmount status } } }"
+}
+
+### ============================================================================
+### 20. FASE 3 - COMPROVAR QUE O @BatchMapping EXECUTOU APENAS 2 SELECTs!
+### (1 SELECT em events + 1 SELECT ... WHERE event_id IN (...) em ticket_orders)
+### ============================================================================
+
+GET {{baseUrl}}/api/v2/diagnostics/sql-counter
+Accept: application/json
