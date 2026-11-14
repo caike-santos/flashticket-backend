@@ -1,5 +1,6 @@
 package com.flashticket.domain.model;
 
+import com.flashticket.domain.exception.BusinessRuleException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -15,6 +16,7 @@ public class Event {
     private int availableTickets;
     private BigDecimal basePrice;
     private BigDecimal platformFee;
+    private Long version;
 
     public Event(
             UUID id,
@@ -26,6 +28,20 @@ public class Event {
             int availableTickets,
             BigDecimal basePrice,
             BigDecimal platformFee) {
+        this(id, title, description, category, eventDate, totalCapacity, availableTickets, basePrice, platformFee, null);
+    }
+
+    public Event(
+            UUID id,
+            String title,
+            String description,
+            EventCategory category,
+            LocalDateTime eventDate,
+            int totalCapacity,
+            int availableTickets,
+            BigDecimal basePrice,
+            BigDecimal platformFee,
+            Long version) {
         this.id = id != null ? id : UUID.randomUUID();
         this.title = title;
         this.description = description;
@@ -35,10 +51,23 @@ public class Event {
         this.availableTickets = availableTickets;
         this.basePrice = basePrice;
         this.platformFee = platformFee;
+        this.version = version;
     }
 
     public BigDecimal getFinalPrice() {
         return basePrice.add(platformFee);
+    }
+
+    public void reserveTickets(int quantity) {
+        if (quantity <= 0) {
+            throw new BusinessRuleException("A quantidade de ingressos deve ser maior que zero.");
+        }
+        if (this.availableTickets < quantity) {
+            throw new BusinessRuleException(
+                    "Estoque insuficiente! Ingressos disponiveis: " + this.availableTickets
+                            + ", solicitados: " + quantity);
+        }
+        this.availableTickets -= quantity;
     }
 
     public void updateDetails(
@@ -93,5 +122,9 @@ public class Event {
 
     public BigDecimal getPlatformFee() {
         return platformFee;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }
