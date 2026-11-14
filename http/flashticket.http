@@ -130,3 +130,57 @@ Accept: application/json
 ### ============================================================================
 
 DELETE {{baseUrl}}/api/v2/events/{{eventId}}
+
+
+### ============================================================================
+### 11. FASE 2 - MIGRATIONS COM FLYWAY (Inspecionar tabela flyway_schema_history)
+### ============================================================================
+
+GET {{baseUrl}}/api/v2/diagnostics/flyway
+Accept: application/json
+
+### ============================================================================
+### 12. FASE 2 - ÍNDICES NO BANCO (Executar EXPLAIN e ver o Index Scan em ação)
+### ============================================================================
+
+GET {{baseUrl}}/api/v2/diagnostics/query-plan?category=CONCERT
+Accept: application/json
+
+### ============================================================================
+### 13. FASE 2 - TRANSAÇÕES ACID: COMPRAR INGRESSOS (Com Lock Otimista @Version)
+### ============================================================================
+
+POST {{baseUrl}}/api/v2/orders
+Content-Type: application/json
+
+{
+  "eventId": "{{eventId}}",
+  "customerEmail": "caike@flashticket.com",
+  "quantity": 2,
+  "usePessimisticLock": false,
+  "simulateFailureAfterStockDeduction": false
+}
+
+### ============================================================================
+### 14. FASE 2 - TRANSAÇÕES ACID: TESTAR ROLLBACK ATÔMICO
+### Simula erro logo APÓS abater o estoque no banco. O @Transactional fará
+### ROLLBACK automático e o availableTickets do evento NÃO será reduzido!
+### ============================================================================
+
+POST {{baseUrl}}/api/v2/orders
+Content-Type: application/json
+
+{
+  "eventId": "{{eventId}}",
+  "customerEmail": "caike@flashticket.com",
+  "quantity": 10,
+  "usePessimisticLock": false,
+  "simulateFailureAfterStockDeduction": true
+}
+
+### ============================================================================
+### 15. FASE 2 - CONSULTAR PEDIDOS DO CLIENTE (Usa índice idx_ticket_orders_customer_email)
+### ============================================================================
+
+GET {{baseUrl}}/api/v2/orders?customerEmail=caike@flashticket.com
+Accept: application/json
