@@ -2,10 +2,12 @@ package com.flashticket.api.controller;
 
 import com.flashticket.application.service.DatabaseDiagnosticsService;
 import com.flashticket.domain.model.EventCategory;
+import com.flashticket.infrastructure.persistence.jpa.HibernateSqlCounter;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,5 +36,19 @@ public class DatabaseDiagnosticsController {
                 "indexExpected", "idx_events_category_event_date",
                 "executionPlan", plan
         ));
+    }
+
+    @GetMapping("/sql-counter")
+    public ResponseEntity<Map<String, Object>> getSqlCounterStats() {
+        return ResponseEntity.ok(Map.of(
+                "totalSelectQueriesExecuted", HibernateSqlCounter.getSelectCount(),
+                "executedQueries", HibernateSqlCounter.getExecutedQueries()
+        ));
+    }
+
+    @PostMapping("/sql-counter/reset")
+    public ResponseEntity<Map<String, String>> resetSqlCounter() {
+        HibernateSqlCounter.reset();
+        return ResponseEntity.ok(Map.of("message", "Contador de queries SQL zerado com sucesso!"));
     }
 }
