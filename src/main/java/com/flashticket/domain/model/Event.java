@@ -1,11 +1,12 @@
 package com.flashticket.domain.model;
 
 import com.flashticket.domain.exception.BusinessRuleException;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public class Event {
+public class Event implements Serializable {
 
     private final UUID id;
     private String title;

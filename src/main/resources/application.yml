@@ -2,6 +2,16 @@ spring:
   application:
     name: flashticket-backend
 
+  # Por padrão (sem Docker aberto), desativamos a conexão automática ao container Mongo/Redis
+  # e usamos os Adapters em memória + Caffeine Cache (com TTL de 5 min).
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration
+      - org.springframework.boot.data.mongodb.autoconfigure.DataMongoAutoConfiguration
+      - org.springframework.boot.data.mongodb.autoconfigure.DataMongoRepositoriesAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
+
   # Configuração padrão (H2 em modo de compatibilidade PostgreSQL para rodar imediatamente sem exigir Docker aberto)
   datasource:
     url: jdbc:h2:mem:flashticket;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
@@ -10,15 +20,12 @@ spring:
     driver-class-name: org.h2.Driver
 
   # TÓPICO: MIGRATIONS COM FLYWAY
-  # O Flyway executa os scripts de src/main/resources/db/migration em ordem (V1__, V2__...)
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
 
   # TÓPICO: BOAS PRÁTICAS JPA EM PRODUÇÃO
-  # ddl-auto: validate garante que o Hibernate NUNCA crie ou altere tabelas sozinho;
-  # ele apenas valida se as entidades Java batem 100% com as tabelas criadas pelo Flyway!
   jpa:
     open-in-view: false
     hibernate:
@@ -52,14 +59,23 @@ management:
         enabled: true
 
 ---
-# Profile 'postgres' para usar com o container Docker (docker compose up -d)
-# Para ativar: .\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=postgres
+# Profile 'postgres' ou 'docker' para usar com os containers Docker (PostgreSQL + MongoDB + Redis)
+# Para ativar: .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=postgres"
 spring:
   config:
     activate:
-      on-profile: postgres
+      on-profile: postgres,docker
+  autoconfigure:
+    exclude: []
   datasource:
     url: jdbc:postgresql://localhost:5432/flashticket
     username: flashticket
     password: flashticket_secret
     driver-class-name: org.postgresql.Driver
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/flashticket_audit
+      auto-index-creation: true
+    redis:
+      host: localhost
+      port: 6379

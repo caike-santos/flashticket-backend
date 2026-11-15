@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:8080
-@eventId = 90f8a7c9-b2c1-4a50-8547-2c0d8fcf7414
+@eventId = 28c5227f-6abf-4dea-9b77-cceab6871a67
 
 ### ============================================================================
 ### 0. HEALTH CHECK (Actuator)
@@ -232,4 +232,36 @@ Content-Type: application/json
 ### ============================================================================
 
 GET {{baseUrl}}/api/v2/diagnostics/sql-counter
+Accept: application/json
+
+
+### ============================================================================
+### 21. FASE 4 - TESTAR CACHE-ASIDE (@Cacheable: CACHE MISS vs CACHE HIT)
+### Passo 1: Zere o contador SQL, depois chame o GET 2 vezes seguidas e olhe o
+### sql-counter: na 1ª chamada faz 1 SELECT (Miss), na 2ª faz 0 SELECTs (Hit)!
+### ============================================================================
+
+POST {{baseUrl}}/api/v2/diagnostics/sql-counter/reset
+
+###
+
+GET {{baseUrl}}/api/v2/events/{{eventId}}
+Accept: application/json
+
+###
+
+GET {{baseUrl}}/api/v2/diagnostics/sql-counter
+Accept: application/json
+
+### ============================================================================
+### 22. FASE 4 - CONSULTAR DOCUMENTOS NOSQL DE AUDITORIA (MongoDB Audit Logs)
+### Repare como o campo 'flexiblePayload' muda de estrutura conforme a ação
+### (EVENT_CREATED vs TICKET_PURCHASED vs EVENT_UPDATED) sem usar Migrations!
+### ============================================================================
+
+GET {{baseUrl}}/api/v2/audit-logs
+Accept: application/json
+
+### Filtrar documentos NoSQL de auditoria por ID do evento
+GET {{baseUrl}}/api/v2/audit-logs?resourceId={{eventId}}
 Accept: application/json

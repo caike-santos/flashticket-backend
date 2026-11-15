@@ -16,5 +16,28 @@ services:
       timeout: 5s
       retries: 5
 
+  # TÓPICO (Fase 4): Banco Não Relacional Orientado a Documentos (MongoDB)
+  # Usado para Trilha de Auditoria (Audit Logs) com schema JSON flexível (BSON)
+  mongodb:
+    # Usamos mongo:4.4 pois versões 5.0+ exigem instruções AVX na CPU
+    image: mongo:4.4
+    container_name: flashticket-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  # TÓPICO (Fase 4): Banco Não Relacional Chave-Valor em Memória (Redis)
+  # Usado para Cache Distribuído (Cache-Aside com TTL), Rate Limiter e Rotação de JWT
+  redis:
+    image: redis:7-alpine
+    container_name: flashticket-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   postgres_data:
+  mongo_data:
+  redis_data:

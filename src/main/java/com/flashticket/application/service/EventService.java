@@ -1,32 +1,49 @@
 package com.flashticket.application.service;
 
 import com.flashticket.domain.exception.ResourceNotFoundException;
+import com.flashticket.domain.model.AuditLog;
 import com.flashticket.domain.model.Event;
 import com.flashticket.domain.model.EventCategory;
 import com.flashticket.domain.pricing.FeeCalculatorService;
+import com.flashticket.domain.repository.AuditLogRepositoryPort;
 import com.flashticket.domain.repository.EventRepositoryPort;
+import com.flashticket.infrastructure.config.CacheConfig;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 /**
- * TÓPICO: SOLID (SRP e DIP)
- * Orquestra casos de uso de Eventos delegando cálculo de taxas para FeeCalculatorService
- * e persistência para a abstração EventRepositoryPort.
+ * TÓPICOS:
+ * - Fase 1: SOLID (SRP e DIP)
+ * - Fase 4: Cache-Aside (@Cacheable na leitura e @CacheEvict na escrita para evitar dados defasados)
+ * - Fase 4: Persistência NoSQL (MongoDB) de logs de auditoria com payload JSON flexível
  */
 @Service
 public class EventService {
 
     private final EventRepositoryPort eventRepository;
     private final FeeCalculatorService feeCalculatorService;
+    private final AuditLogRepositoryPort auditLogRepository;
 
-    public EventService(EventRepositoryPort eventRepository, FeeCalculatorService feeCalculatorService) {
+    public EventService(
+            EventRepositoryPort eventRepository,
+            FeeCalculatorService feeCalculatorService,
+            AuditLogRepositoryPort auditLogRepository) {
         this.eventRepository = eventRepository;
         this.feeCalculatorService = feeCalculatorService;
+        this.auditLogRepository = auditLogRepository;
     }
 
+    /**
+     * @CacheEvict: Ao criar um evento, limpa o cache de listagem para que a vitrine mostre o novo evento!
+     */
+    @CacheEvict(value = CacheConfig.EVENTS_LIST_CACHE, allEntries = true)
     public Event createEvent(
             String title,
             String description,
@@ -45,18 +62,49 @@ public class EventService {
                 totalCapacity,
                 basePrice,
                 platformFee);
-        return eventRepository.save(event);
+        Event saved = eventRepository.save(event);
+
+        // Registra documento NoSQL (MongoDB) com estrutura JSON específica de criação de evento
+        auditLogRepository.save(AuditLog.create(
+                "EVENT_CREATED",
+                saved.getId().toString(),
+                "ORGANIZER",
+                Map.of(
+                        "title", saved.getTitle(),
+                        "category", saved.getCategory().name(),
+                        "totalCapacity", saved.getTotalCapacity(),
+                        "basePrice", saved.getBasePrice(),
+                        "platformFee", saved.getPlatformFee(),
+                        "finalPrice", saved.getFinalPrice()
+                )
+        ));
+
+        return saved;
     }
 
+    /**
+     * @Cacheable (Padrão Cache-Aside):
+     * - 1ª chamada (CACHE MISS): Executa o método, vai no PostgreSQL e salva o retorno no Cache (Redis/Caffeine).
+     * - 2ª chamada em diante (CACHE HIT): Retorna direto da memória RAM sem nem entrar neste método (0 SELECTs no banco)!
+     */
+    @Cacheable(value = CacheConfig.EVENT_BY_ID_CACHE, key = "#id")
     public Event getEventById(UUID id) {
         return eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Evento nao encontrado com ID: " + id));
     }
 
+    @Cacheable(value = CacheConfig.EVENTS_LIST_CACHE, key = "#category != null ? #category.name() : 'ALL'")
     public List<Event> listEvents(EventCategory category) {
         return eventRepository.findAll(category);
     }
 
+    /**
+     * @Caching / @CacheEvict: Ao atualizar um evento, remove tanto o cache individual (#id) quanto a listagem!
+     */
+    @Caching(evict = {
+            @CacheEvict(value = CacheConfig.EVENT_BY_ID_CACHE, key = "#id"),
+            @CacheEvict(value = CacheConfig.EVENTS_LIST_CACHE, allEntries = true)
+    })
     public Event updateEvent(
             UUID id,
             String title,
@@ -65,16 +113,44 @@ public class EventService {
             LocalDateTime eventDate,
             int totalCapacity,
             BigDecimal basePrice) {
-        Event existing = getEventById(id);
+        Event existing = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento nao encontrado com ID: " + id));
+        BigDecimal oldPrice = existing.getBasePrice();
+
         BigDecimal platformFee = feeCalculatorService.calculatePlatformFee(category, basePrice);
         existing.updateDetails(title, description, category, eventDate, totalCapacity, basePrice, platformFee);
-        return eventRepository.save(existing);
+        Event saved = eventRepository.save(existing);
+
+        // Registra documento NoSQL com campos diferentes (oldBasePrice -> newBasePrice) sem precisar de Migration!
+        auditLogRepository.save(AuditLog.create(
+                "EVENT_UPDATED",
+                saved.getId().toString(),
+                "ORGANIZER",
+                Map.of(
+                        "oldBasePrice", oldPrice,
+                        "newBasePrice", saved.getBasePrice(),
+                        "newTotalCapacity", saved.getTotalCapacity()
+                )
+        ));
+
+        return saved;
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = CacheConfig.EVENT_BY_ID_CACHE, key = "#id"),
+            @CacheEvict(value = CacheConfig.EVENTS_LIST_CACHE, allEntries = true)
+    })
     public void deleteEvent(UUID id) {
         if (!eventRepository.existsById(id)) {
             throw new ResourceNotFoundException("Evento nao encontrado com ID: " + id);
         }
         eventRepository.deleteById(id);
+
+        auditLogRepository.save(AuditLog.create(
+                "EVENT_DELETED",
+                id.toString(),
+                "ORGANIZER",
+                Map.of("deletedEventId", id.toString())
+        ));
     }
 }

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -35,6 +36,9 @@ class GraphqlNPlusOneIntegrationTest {
 
     @Autowired
     private TicketPurchaseService ticketPurchaseService;
+
+    @Autowired
+    private CacheManager cacheManager;
 
     @Test
     @DisplayName("Fase 3: Deve comprovar que eventsWithNPlusOneProblem executa N+1 SELECTs e eventsOptimized (@BatchMapping) executa apenas 2 SELECTs")
@@ -61,6 +65,12 @@ class GraphqlNPlusOneIntegrationTest {
         // =====================================================================
         // CENÁRIO A: ❌ EXECUTANDO A QUERY GRAPHQL COM PROBLEMA DE N+1
         // =====================================================================
+        cacheManager.getCacheNames().forEach(name -> {
+            var cache = cacheManager.getCache(name);
+            if (cache != null) {
+                cache.clear();
+            }
+        });
         HibernateSqlCounter.reset();
 
         String nPlusOneGraphqlQuery = """
@@ -89,6 +99,12 @@ class GraphqlNPlusOneIntegrationTest {
         // =====================================================================
         // CENÁRIO B: ✅ EXECUTANDO A QUERY GRAPHQL OTIMIZADA COM @BatchMapping
         // =====================================================================
+        cacheManager.getCacheNames().forEach(name -> {
+            var cache = cacheManager.getCache(name);
+            if (cache != null) {
+                cache.clear();
+            }
+        });
         HibernateSqlCounter.reset();
 
         String optimizedGraphqlQuery = """
