@@ -1,9 +1,12 @@
 package com.flashticket.application.service;
 
 import com.flashticket.domain.exception.ResourceNotFoundException;
+import com.flashticket.domain.model.AuditLog;
 import com.flashticket.domain.model.Event;
 import com.flashticket.domain.model.OrderStatus;
 import com.flashticket.domain.model.TicketOrder;
+import com.flashticket.domain.repository.AuditLogRepositoryPort;
+import com.flashticket.infrastructure.config.CacheConfig;
 import com.flashticket.infrastructure.persistence.jpa.EventJpaEntity;
 import com.flashticket.infrastructure.persistence.jpa.SpringDataEventRepository;
 import com.flashticket.infrastructure.persistence.jpa.SpringDataTicketOrderRepository;
@@ -11,18 +14,16 @@ import com.flashticket.infrastructure.persistence.jpa.TicketOrderJpaEntity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * TÓPICO: TRANSAÇÕES ACID (@Transactional)
- * - Atomicidade (A): Abater o estoque na tabela 'events' e inserir o pedido na tabela 'ticket_orders'
- *   acontecem como uma unidade indivisível (Tudo ou Nada). Se der erro no meio, o banco faz ROLLBACK!
- * - Consistência (C): As regras de domínio (availableTickets >= 0) e CHECK constraints do banco nunca são violadas.
- * - Isolamento (I): Controlado via nível de isolamento READ_COMMITTED + Lock Otimista (@Version) ou Pessimista (FOR UPDATE).
- * - Durabilidade (D): Após o COMMIT, os dados ficam gravados no Write-Ahead Log (WAL) do banco.
+ * TÓPICO: TRANSAÇÕES ACID (@Transactional) + Invalidação de Cache (@CacheEvict) + Auditoria NoSQL
  */
 @Service
 public class TicketPurchaseService {
@@ -31,14 +32,26 @@ public class TicketPurchaseService {
 
     private final SpringDataEventRepository eventRepository;
     private final SpringDataTicketOrderRepository orderRepository;
+    private final AuditLogRepositoryPort auditLogRepository;
 
     public TicketPurchaseService(
             SpringDataEventRepository eventRepository,
-            SpringDataTicketOrderRepository orderRepository) {
+            SpringDataTicketOrderRepository orderRepository,
+            AuditLogRepositoryPort auditLogRepository) {
         this.eventRepository = eventRepository;
         this.orderRepository = orderRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
+    /**
+     * TÓPICO (Fase 4): @CacheEvict em mudanças de estoque!
+     * Sempre que uma compra é concluída, o availableTickets do evento diminui.
+     * Por isso invalidamos o cache desse evento (#eventId) e da vitrine geral para ninguém ver estoque defasado!
+     */
+    @Caching(evict = {
+            @CacheEvict(value = CacheConfig.EVENT_BY_ID_CACHE, key = "#eventId"),
+            @CacheEvict(value = CacheConfig.EVENTS_LIST_CACHE, allEntries = true)
+    })
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketOrder purchaseTickets(
             UUID eventId,
@@ -63,8 +76,6 @@ public class TicketPurchaseService {
         eventRepository.saveAndFlush(eventEntity);
 
         // 4. Demonstração prática da ATOMICIDADE (A do ACID):
-        // Se uma falha ocorrer DEPOIS de abater o estoque e ANTES de salvar o pedido,
-        // o @Transactional desfaz (ROLLBACK) o UPDATE na tabela 'events' automaticamente!
         if (simulateFailureAfterStockDeduction) {
             throw new IllegalStateException(
                     "Falha simulada apos abater estoque! O @Transactional fara ROLLBACK e devolvera o ingresso.");
@@ -88,7 +99,23 @@ public class TicketPurchaseService {
         );
 
         TicketOrderJpaEntity savedOrder = orderRepository.saveAndFlush(TicketOrderJpaEntity.fromDomain(order));
-        return savedOrder.toDomain();
+        TicketOrder result = savedOrder.toDomain();
+
+        // 6. Grava Documento NoSQL (MongoDB) com metadados específicos da compra de ingresso
+        auditLogRepository.save(AuditLog.create(
+                "TICKET_PURCHASED",
+                eventId.toString(),
+                customerEmail,
+                Map.of(
+                        "orderId", result.getId().toString(),
+                        "quantity", quantity,
+                        "totalAmount", totalAmount,
+                        "remainingTickets", domainEvent.getAvailableTickets(),
+                        "lockStrategy", usePessimisticLock ? "PESSIMISTIC_WRITE" : "OPTIMISTIC_VERSION"
+                )
+        ));
+
+        return result;
     }
 
     @Transactional(readOnly = true)
