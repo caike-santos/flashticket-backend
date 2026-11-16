@@ -381,3 +381,48 @@ Content-Type: application/json
 GET http://localhost:8080/api/v2/security-demo/rate-limited
 X-Client-Key: meu-ip-teste
 Accept: application/json
+
+
+
+### ============================================================================
+### FASE 6: PROGRAMAÇÃO ASSÍNCRONA (@Async), WEBHOOKS (HMAC + IDEMPOTÊNCIA)
+###         E CRON JOBS / TAREFAS AGENDADAS (@Scheduled)
+### ============================================================================
+
+### 30. Gerar assinatura HMAC-SHA256 para testar o Webhook Inbound de Pagamento
+# @name webhookSignHelper
+POST http://localhost:8080/api/v2/webhooks/payment/sign-helper
+Content-Type: application/json
+
+{
+  "webhookEventId": "evt_gateway_001",
+  "orderId": "{{createdEventId}}",
+  "paymentStatus": "PAID"
+}
+
+###
+@webhookSignature = {{webhookSignHelper.response.body.signatureHeaderValue}}
+
+### 31. Enviar Webhook Inbound (Valida X-Webhook-Signature, garante Idempotência e dispara @Async)
+### (Rode 2 vezes seguidas para ver duplicateIgnoredByIdempotency = true na 2ª vez!)
+POST http://localhost:8080/api/v2/webhooks/payment
+X-Webhook-Signature: {{webhookSignature}}
+Content-Type: application/json
+
+{
+  "webhookEventId": "evt_gateway_001",
+  "orderId": "{{createdEventId}}",
+  "paymentStatus": "PAID"
+}
+
+### 32. Consultar o comprovante de QR Code gerado em background pela thread @Async (FlashTicket-Async-*)
+GET http://localhost:8080/api/v2/async/fulfillments/{{createdEventId}}
+Accept: application/json
+
+### 33. Listar Webhooks Outbound enviados pelo FlashTicket para o sistema do Organizador
+GET http://localhost:8080/api/v2/webhooks/outbound-deliveries
+Accept: application/json
+
+### 34. Cron Job (@Scheduled): Forçar expiração de um pedido PENDING e rodar limpeza para devolver estoque
+POST http://localhost:8080/api/v2/jobs/run-expired-orders-cleanup
+Accept: application/json
