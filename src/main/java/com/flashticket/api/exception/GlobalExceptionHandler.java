@@ -2,6 +2,7 @@ package com.flashticket.api.exception;
 
 import com.flashticket.domain.exception.BusinessRuleException;
 import com.flashticket.domain.exception.ResourceNotFoundException;
+import com.flashticket.domain.exception.SecurityAuthenticationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.Instant;
@@ -37,6 +38,16 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Violacao de regra de negocio");
         problem.setType(URI.create("https://flashticket.com/errors/business-rule"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("timestamp", Instant.now());
+        return problem;
+    }
+
+    @ExceptionHandler(SecurityAuthenticationException.class)
+    public ProblemDetail handleSecurityAuthentication(SecurityAuthenticationException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        problem.setTitle("Falha de autenticacao ou seguranca");
+        problem.setType(URI.create("https://flashticket.com/errors/unauthorized"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("timestamp", Instant.now());
         return problem;

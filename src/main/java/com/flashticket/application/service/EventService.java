@@ -8,6 +8,7 @@ import com.flashticket.domain.pricing.FeeCalculatorService;
 import com.flashticket.domain.repository.AuditLogRepositoryPort;
 import com.flashticket.domain.repository.EventRepositoryPort;
 import com.flashticket.infrastructure.config.CacheConfig;
+import com.flashticket.infrastructure.security.XssSanitizer;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,11 +52,13 @@ public class EventService {
             LocalDateTime eventDate,
             int totalCapacity,
             BigDecimal basePrice) {
+        String safeTitle = XssSanitizer.sanitize(title);
+        String safeDescription = XssSanitizer.sanitize(description);
         BigDecimal platformFee = feeCalculatorService.calculatePlatformFee(category, basePrice);
         Event event = new Event(
                 UUID.randomUUID(),
-                title,
-                description,
+                safeTitle,
+                safeDescription,
                 category,
                 eventDate,
                 totalCapacity,
@@ -117,8 +120,10 @@ public class EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Evento nao encontrado com ID: " + id));
         BigDecimal oldPrice = existing.getBasePrice();
 
+        String safeTitle = XssSanitizer.sanitize(title);
+        String safeDescription = XssSanitizer.sanitize(description);
         BigDecimal platformFee = feeCalculatorService.calculatePlatformFee(category, basePrice);
-        existing.updateDetails(title, description, category, eventDate, totalCapacity, basePrice, platformFee);
+        existing.updateDetails(safeTitle, safeDescription, category, eventDate, totalCapacity, basePrice, platformFee);
         Event saved = eventRepository.save(existing);
 
         // Registra documento NoSQL com campos diferentes (oldBasePrice -> newBasePrice) sem precisar de Migration!
