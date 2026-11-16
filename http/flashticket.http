@@ -1,5 +1,4 @@
 @baseUrl = http://localhost:8080
-@eventId = 28c5227f-6abf-4dea-9b77-cceab6871a67
 
 ### ============================================================================
 ### 0. HEALTH CHECK (Actuator)
@@ -10,10 +9,9 @@ Accept: application/json
 
 ### ============================================================================
 ### 1. API v2 - CRIAR EVENTO (CONCERT -> Taxa de 15% via SOLID Strategy)
-### No IntelliJ IDEA, o script abaixo salva o ID automaticamente em {{eventId}}.
+### No IntelliJ IDEA, o bloco > {% ... %} salva o ID automaticamente em {{eventId}}!
 ### ============================================================================
 
-# @name createConcert
 POST {{baseUrl}}/api/v2/events
 Content-Type: application/json
 
@@ -148,6 +146,7 @@ Accept: application/json
 
 ### ============================================================================
 ### 13. FASE 2 - TRANSAÇÕES ACID: COMPRAR INGRESSOS (Com Lock Otimista @Version)
+### Salva automaticamente o ID do pedido em {{orderId}} no IntelliJ IDEA!
 ### ============================================================================
 
 POST {{baseUrl}}/api/v2/orders
@@ -160,6 +159,10 @@ Content-Type: application/json
   "usePessimisticLock": false,
   "simulateFailureAfterStockDeduction": false
 }
+
+> {%
+    client.global.set("orderId", response.body.id);
+%}
 
 ### ============================================================================
 ### 14. FASE 2 - TRANSAÇÕES ACID: TESTAR ROLLBACK ATÔMICO
@@ -274,8 +277,7 @@ Accept: application/json
 ### ============================================================================
 
 ### 23. Login Stateless -> Emite Access Token (JWT HS256) + Refresh Token (#1)
-# @name loginResponse
-POST http://localhost:8080/api/v2/auth/login
+POST {{baseUrl}}/api/v2/auth/login
 Content-Type: application/json
 
 {
@@ -283,28 +285,33 @@ Content-Type: application/json
   "password": "Flash@2026"
 }
 
-###
-@accessToken = {{loginResponse.response.body.accessToken}}
-@refreshToken1 = {{loginResponse.response.body.refreshToken}}
+> {%
+    client.global.set("accessToken", response.body.accessToken);
+    client.global.set("refreshToken1", response.body.refreshToken);
+%}
 
 ### 24. Acessar rota protegida (/api/v2/auth/me) enviando o JWT no Header Authorization: Bearer
-GET http://localhost:8080/api/v2/auth/me
+GET {{baseUrl}}/api/v2/auth/me
 Authorization: Bearer {{accessToken}}
 Accept: application/json
 
 ### 25. Rotação de Refresh Token (Uso Único): Troca Refresh Token #1 por um novo par (#2)
-# @name rotateResponse
-POST http://localhost:8080/api/v2/auth/refresh
+POST {{baseUrl}}/api/v2/auth/refresh
 Content-Type: application/json
 
 {
   "refreshToken": "{{refreshToken1}}"
 }
 
+> {%
+    client.global.set("accessToken", response.body.accessToken);
+    client.global.set("refreshToken2", response.body.refreshToken);
+%}
+
 ### 26. SIMULAÇÃO DE ROUBO DE TOKEN (Reuse Detection):
 ### Tente enviar o Refresh Token #1 antigo uma 2ª vez -> O servidor detecta reuso
 ### e REVOGA TODA A FAMÍLIA DE TOKENS (inclusive o Refresh Token #2)!
-POST http://localhost:8080/api/v2/auth/refresh
+POST {{baseUrl}}/api/v2/auth/refresh
 Content-Type: application/json
 
 {
@@ -313,17 +320,16 @@ Content-Type: application/json
 
 ### 27. OAuth 2.0 — Fluxo 1: Authorization Code Flow com PKCE (S256)
 ### Passo 27A: Gerar par PKCE (code_verifier secreto + code_challenge S256)
-# @name pkceHelper
-GET http://localhost:8080/api/v2/auth/oauth2/pkce-helper
+GET {{baseUrl}}/api/v2/auth/oauth2/pkce-helper
 Accept: application/json
 
-###
-@pkceVerifier = {{pkceHelper.response.body.codeVerifier}}
-@pkceChallenge = {{pkceHelper.response.body.codeChallenge}}
+> {%
+    client.global.set("pkceVerifier", response.body.codeVerifier);
+    client.global.set("pkceChallenge", response.body.codeChallenge);
+%}
 
 ### Passo 27B: Solicitar Authorization Code enviando apenas o code_challenge (S256)
-# @name oauthAuthorize
-POST http://localhost:8080/api/v2/auth/oauth2/authorize
+POST {{baseUrl}}/api/v2/auth/oauth2/authorize
 Content-Type: application/json
 
 {
@@ -335,11 +341,12 @@ Content-Type: application/json
   "state": "estado_anti_csrf_123"
 }
 
-###
-@oauthCode = {{oauthAuthorize.response.body.authorizationCode}}
+> {%
+    client.global.set("oauthCode", response.body.authorizationCode);
+%}
 
 ### Passo 27C: Trocar o Authorization Code por Tokens enviando o code_verifier original
-POST http://localhost:8080/api/v2/auth/oauth2/token
+POST {{baseUrl}}/api/v2/auth/oauth2/token
 Content-Type: application/json
 
 {
@@ -350,8 +357,7 @@ Content-Type: application/json
 }
 
 ### 28. OAuth 2.0 — Fluxo 2: Client Credentials Flow (Máquina-a-Máquina / M2M para Parceiros)
-# @name partnerTokenResponse
-POST http://localhost:8080/api/v2/auth/oauth2/token
+POST {{baseUrl}}/api/v2/auth/oauth2/token
 Content-Type: application/json
 
 {
@@ -361,16 +367,17 @@ Content-Type: application/json
   "scope": "tickets:read webhooks:write"
 }
 
-###
-@partnerToken = {{partnerTokenResponse.response.body.accessToken}}
+> {%
+    client.global.set("partnerToken", response.body.accessToken);
+%}
 
 ### Acessar endpoint exclusivo de parceiro M2M (ROLE_PARTNER)
-GET http://localhost:8080/api/v2/security-demo/partner-only
+GET {{baseUrl}}/api/v2/security-demo/partner-only
 Authorization: Bearer {{partnerToken}}
 Accept: application/json
 
 ### 29. Demonstração de XSS Sanitization, CSRF Double-Submit Cookie e Rate Limiter (429)
-POST http://localhost:8080/api/v2/security-demo/sanitize-xss
+POST {{baseUrl}}/api/v2/security-demo/sanitize-xss
 Content-Type: application/json
 
 {
@@ -378,7 +385,7 @@ Content-Type: application/json
 }
 
 ### Rate Limiter (Token Bucket): Rode 6 vezes seguidas para ver o 429 Too Many Requests na 6ª chamada!
-GET http://localhost:8080/api/v2/security-demo/rate-limited
+GET {{baseUrl}}/api/v2/security-demo/rate-limited
 X-Client-Key: meu-ip-teste
 Accept: application/json
 
@@ -390,39 +397,108 @@ Accept: application/json
 ### ============================================================================
 
 ### 30. Gerar assinatura HMAC-SHA256 para testar o Webhook Inbound de Pagamento
-# @name webhookSignHelper
-POST http://localhost:8080/api/v2/webhooks/payment/sign-helper
+### (Antes de rodar o 30, certifique-se de ter rodado o passo 1 e o passo 13 para ter um {{orderId}}!)
+POST {{baseUrl}}/api/v2/webhooks/payment/sign-helper
 Content-Type: application/json
 
 {
   "webhookEventId": "evt_gateway_001",
-  "orderId": "{{createdEventId}}",
+  "orderId": "{{orderId}}",
   "paymentStatus": "PAID"
 }
 
-###
-@webhookSignature = {{webhookSignHelper.response.body.signatureHeaderValue}}
+> {%
+    client.global.set("webhookSignature", response.body.signatureHeaderValue);
+%}
 
 ### 31. Enviar Webhook Inbound (Valida X-Webhook-Signature, garante Idempotência e dispara @Async)
 ### (Rode 2 vezes seguidas para ver duplicateIgnoredByIdempotency = true na 2ª vez!)
-POST http://localhost:8080/api/v2/webhooks/payment
+POST {{baseUrl}}/api/v2/webhooks/payment
 X-Webhook-Signature: {{webhookSignature}}
 Content-Type: application/json
 
 {
   "webhookEventId": "evt_gateway_001",
-  "orderId": "{{createdEventId}}",
+  "orderId": "{{orderId}}",
   "paymentStatus": "PAID"
 }
 
 ### 32. Consultar o comprovante de QR Code gerado em background pela thread @Async (FlashTicket-Async-*)
-GET http://localhost:8080/api/v2/async/fulfillments/{{createdEventId}}
+GET {{baseUrl}}/api/v2/async/fulfillments/{{orderId}}
 Accept: application/json
 
 ### 33. Listar Webhooks Outbound enviados pelo FlashTicket para o sistema do Organizador
-GET http://localhost:8080/api/v2/webhooks/outbound-deliveries
+GET {{baseUrl}}/api/v2/webhooks/outbound-deliveries
 Accept: application/json
 
 ### 34. Cron Job (@Scheduled): Forçar expiração de um pedido PENDING e rodar limpeza para devolver estoque
-POST http://localhost:8080/api/v2/jobs/run-expired-orders-cleanup
+POST {{baseUrl}}/api/v2/jobs/expire-order-for-test/{{orderId}}
 Accept: application/json
+
+###
+POST {{baseUrl}}/api/v2/jobs/run-expired-orders-cleanup
+Accept: application/json
+
+
+
+### ============================================================================
+### FASE 7: PADRÕES DE RESILIÊNCIA EM INTEGRAÇÕES EXTERNAS
+###         (TIMEOUTS, RETRIES + EXPONENTIAL BACKOFF/JITTER, CIRCUIT BREAKER,
+###          BULKHEAD E FALLBACK)
+### ============================================================================
+
+### 35. Retry com Exponential Backoff + Jitter:
+### Simula falha 503 nas tentativas #1 e #2 e sucesso na tentativa #3!
+POST http://localhost:8080/api/v2/resilience/charge
+Content-Type: application/json
+
+{
+  "amount": 250.00,
+  "behavior": "TRANSIENT_FAIL_TWICE_THEN_SUCCEED"
+}
+
+### 36. Erro permanente de negócio (422 Cartão Recusado):
+### Comprova que erros 4xx NÃO sofrem Retry (attemptsMade = 1) e NÃO abrem o Circuit Breaker!
+POST http://localhost:8080/api/v2/resilience/charge
+Content-Type: application/json
+
+{
+  "amount": 250.00,
+  "behavior": "NON_RETRYABLE_CARD_DECLINED_422"
+}
+
+### 37. Timeout + Fallback:
+### Simula Gateway travado demorando mais que o limite -> Aborta nas 3 tentativas e enfileira no Fallback (202 Accepted)
+POST http://localhost:8080/api/v2/resilience/charge
+Content-Type: application/json
+
+{
+  "amount": 250.00,
+  "behavior": "SLOW_TIMEOUT"
+}
+
+### 38. Circuit Breaker (Rode 3 vezes para atingir o failureThreshold e abrir o disjuntor -> OPEN)
+POST http://localhost:8080/api/v2/resilience/charge
+Content-Type: application/json
+
+{
+  "amount": 250.00,
+  "behavior": "ALWAYS_FAIL_503"
+}
+
+### 39. Inspecionar status do Circuit Breaker (OPEN), vagas do Bulkhead e fila de Fallback
+GET http://localhost:8080/api/v2/resilience/status
+Accept: application/json
+
+### 40. Transicionar Circuit Breaker para HALF_OPEN e enviar 1 chamada saudável para fechar o circuito (CLOSED)
+POST http://localhost:8080/api/v2/resilience/circuit-breaker/transition-half-open
+Accept: application/json
+
+###
+POST http://localhost:8080/api/v2/resilience/charge
+Content-Type: application/json
+
+{
+  "amount": 250.00,
+  "behavior": "HEALTHY_SUCCESS"
+}
