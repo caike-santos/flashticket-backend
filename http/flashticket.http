@@ -265,3 +265,119 @@ Accept: application/json
 ### Filtrar documentos NoSQL de auditoria por ID do evento
 GET {{baseUrl}}/api/v2/audit-logs?resourceId={{eventId}}
 Accept: application/json
+
+
+
+### ============================================================================
+### FASE 5: SEGURANÇA DE PONTA A PONTA (JWT, ROTAÇÃO DE REFRESH TOKEN, OAUTH 2.0,
+###         CORS, CSRF, XSS & RATE LIMITER COM TOKEN BUCKET)
+### ============================================================================
+
+### 23. Login Stateless -> Emite Access Token (JWT HS256) + Refresh Token (#1)
+# @name loginResponse
+POST http://localhost:8080/api/v2/auth/login
+Content-Type: application/json
+
+{
+  "email": "caike@flashticket.com",
+  "password": "Flash@2026"
+}
+
+###
+@accessToken = {{loginResponse.response.body.accessToken}}
+@refreshToken1 = {{loginResponse.response.body.refreshToken}}
+
+### 24. Acessar rota protegida (/api/v2/auth/me) enviando o JWT no Header Authorization: Bearer
+GET http://localhost:8080/api/v2/auth/me
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 25. Rotação de Refresh Token (Uso Único): Troca Refresh Token #1 por um novo par (#2)
+# @name rotateResponse
+POST http://localhost:8080/api/v2/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken1}}"
+}
+
+### 26. SIMULAÇÃO DE ROUBO DE TOKEN (Reuse Detection):
+### Tente enviar o Refresh Token #1 antigo uma 2ª vez -> O servidor detecta reuso
+### e REVOGA TODA A FAMÍLIA DE TOKENS (inclusive o Refresh Token #2)!
+POST http://localhost:8080/api/v2/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken1}}"
+}
+
+### 27. OAuth 2.0 — Fluxo 1: Authorization Code Flow com PKCE (S256)
+### Passo 27A: Gerar par PKCE (code_verifier secreto + code_challenge S256)
+# @name pkceHelper
+GET http://localhost:8080/api/v2/auth/oauth2/pkce-helper
+Accept: application/json
+
+###
+@pkceVerifier = {{pkceHelper.response.body.codeVerifier}}
+@pkceChallenge = {{pkceHelper.response.body.codeChallenge}}
+
+### Passo 27B: Solicitar Authorization Code enviando apenas o code_challenge (S256)
+# @name oauthAuthorize
+POST http://localhost:8080/api/v2/auth/oauth2/authorize
+Content-Type: application/json
+
+{
+  "clientId": "flashticket-web-spa",
+  "userEmail": "caike@flashticket.com",
+  "redirectUri": "https://app.flashticket.com/callback",
+  "codeChallenge": "{{pkceChallenge}}",
+  "codeChallengeMethod": "S256",
+  "state": "estado_anti_csrf_123"
+}
+
+###
+@oauthCode = {{oauthAuthorize.response.body.authorizationCode}}
+
+### Passo 27C: Trocar o Authorization Code por Tokens enviando o code_verifier original
+POST http://localhost:8080/api/v2/auth/oauth2/token
+Content-Type: application/json
+
+{
+  "grantType": "authorization_code",
+  "clientId": "flashticket-web-spa",
+  "code": "{{oauthCode}}",
+  "codeVerifier": "{{pkceVerifier}}"
+}
+
+### 28. OAuth 2.0 — Fluxo 2: Client Credentials Flow (Máquina-a-Máquina / M2M para Parceiros)
+# @name partnerTokenResponse
+POST http://localhost:8080/api/v2/auth/oauth2/token
+Content-Type: application/json
+
+{
+  "grantType": "client_credentials",
+  "clientId": "flashticket-partner-gateway",
+  "clientSecret": "partner-secret-2026",
+  "scope": "tickets:read webhooks:write"
+}
+
+###
+@partnerToken = {{partnerTokenResponse.response.body.accessToken}}
+
+### Acessar endpoint exclusivo de parceiro M2M (ROLE_PARTNER)
+GET http://localhost:8080/api/v2/security-demo/partner-only
+Authorization: Bearer {{partnerToken}}
+Accept: application/json
+
+### 29. Demonstração de XSS Sanitization, CSRF Double-Submit Cookie e Rate Limiter (429)
+POST http://localhost:8080/api/v2/security-demo/sanitize-xss
+Content-Type: application/json
+
+{
+  "rawHtml": "<script>alert('XSS')</script><img src=x onerror=\"roubarToken()\">Show Rock in Rio"
+}
+
+### Rate Limiter (Token Bucket): Rode 6 vezes seguidas para ver o 429 Too Many Requests na 6ª chamada!
+GET http://localhost:8080/api/v2/security-demo/rate-limited
+X-Client-Key: meu-ip-teste
+Accept: application/json
