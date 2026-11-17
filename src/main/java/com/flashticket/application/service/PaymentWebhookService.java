@@ -19,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PaymentWebhookService {
 
+    private static final Logger log = LoggerFactory.getLogger(PaymentWebhookService.class);
     private static final String HMAC_SHA256 = "HmacSHA256";
 
     private final byte[] webhookSecretBytes;
@@ -91,6 +94,8 @@ public class PaymentWebhookService {
         if (signatureHeader == null || !MessageDigest.isEqual(
                 expectedSignature.getBytes(StandardCharsets.UTF_8),
                 signatureHeader.trim().getBytes(StandardCharsets.UTF_8))) {
+            log.warn("Webhook rejeitado por assinatura HMAC-SHA256 invalida: webhookEventId={}, orderId={}",
+                    payload.webhookEventId(), payload.orderId());
             throw new SecurityAuthenticationException(
                     "Assinatura HMAC-SHA256 do Webhook invalida (X-Webhook-Signature nao confere)!");
         }
@@ -98,6 +103,8 @@ public class PaymentWebhookService {
         // 2. Checagem de Idempotência: se este webhookEventId já foi processado, ignora duplicata!
         WebhookProcessingResult previous = processedWebhooksByIdempotencyKey.get(payload.webhookEventId());
         if (previous != null) {
+            log.warn("Webhook duplicado ignorado por idempotencia: webhookEventId={}, orderId={}",
+                    payload.webhookEventId(), payload.orderId());
             return new WebhookProcessingResult(
                     previous.webhookEventId(),
                     previous.orderId(),
@@ -113,6 +120,8 @@ public class PaymentWebhookService {
         if ("PAID".equalsIgnoreCase(payload.paymentStatus())) {
             order.setStatus(OrderStatus.PAID);
             orderRepository.saveAndFlush(order);
+            log.info("Webhook Inbound confirmado: orderId={}, webhookEventId={}, novoStatus=PAID",
+                    order.getId(), payload.webhookEventId());
 
             // 4. Dispara geração de QR Code e envio de e-mail em background (@Async) sem travar a requisição HTTP!
             asyncFulfillmentService.generateQrCodeAndSendEmailAsync(

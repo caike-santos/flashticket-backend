@@ -18,6 +18,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -30,6 +32,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ResilientPaymentGatewayService {
+
+    private static final Logger log = LoggerFactory.getLogger(ResilientPaymentGatewayService.class);
 
     public enum CircuitState {
         CLOSED,
@@ -133,6 +137,8 @@ public class ResilientPaymentGatewayService {
 
                     if (attempt < MAX_RETRY_ATTEMPTS) {
                         long backoffWithJitterMs = computeExponentialBackoffWithJitter(attempt);
+                        log.warn("Falha transitoria na tentativa #{} do pedido {}: {} - aguardando Backoff={}ms",
+                                attempt, command.orderId(), transientEx.getMessage(), backoffWithJitterMs);
                         executionTimeline.add("Aguardando Exponential Backoff + Jitter ("
                                 + backoffWithJitterMs + "ms) antes da tentativa #" + (attempt + 1));
                         sleepQuietly(backoffWithJitterMs);
@@ -271,6 +277,7 @@ public class ResilientPaymentGatewayService {
 
     private void tripCircuitBreakerToOpen(String reason, List<String> timeline) {
         circuitState = CircuitState.OPEN;
+        log.error("CIRCUIT BREAKER ABERTO (OPEN): Chamadas ao Gateway bloqueadas em Fail-Fast! Motivo={}", reason);
         timeline.add("CIRCUIT_BREAKER_TRIPPED_TO_OPEN: Disjuntor ABERTO (" + reason + ")!");
     }
 

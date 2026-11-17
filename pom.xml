@@ -23,6 +23,7 @@
         <java.version>21</java.version>
         <!-- Centralização de versões de bibliotecas externas para evitar Dependency Hell -->
         <commons-lang3.version>3.17.0</commons-lang3.version>
+        <picocli.version>4.7.6</picocli.version>
     </properties>
 
     <!-- ========================================================================= -->
@@ -111,6 +112,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- TÓPICO (Fase 8): CLI Administrativa com Picocli -->
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>${picocli.version}</version>
         </dependency>
 
         <!-- ===================================================================== -->

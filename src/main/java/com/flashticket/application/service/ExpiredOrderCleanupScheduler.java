@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ExpiredOrderCleanupScheduler {
+
+    private static final Logger log = LoggerFactory.getLogger(ExpiredOrderCleanupScheduler.class);
 
     private final SpringDataTicketOrderRepository orderRepository;
     private final SpringDataEventRepository eventRepository;
@@ -93,6 +97,13 @@ public class ExpiredOrderCleanupScheduler {
                             "expiredAt", order.getExpiresAt().toString()
                     )
             ));
+        }
+
+        if (cancelledOrdersCount > 0) {
+            log.info("Cron Job finalizado: cancelledOrders={}, restoredTickets={}",
+                    cancelledOrdersCount, totalTicketsRestored);
+        } else {
+            log.debug("Cron Job executado: nenhum pedido PENDING expirado encontrado.");
         }
 
         return new CleanupExecutionReport(

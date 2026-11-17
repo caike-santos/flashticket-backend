@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -27,6 +29,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class EventService {
+
+    private static final Logger log = LoggerFactory.getLogger(EventService.class);
 
     private final EventRepositoryPort eventRepository;
     private final FeeCalculatorService feeCalculatorService;
@@ -66,6 +70,8 @@ public class EventService {
                 basePrice,
                 platformFee);
         Event saved = eventRepository.save(event);
+        log.info("Evento criado: id={}, title='{}', category={}, finalPrice={}",
+                saved.getId(), saved.getTitle(), saved.getCategory(), saved.getFinalPrice());
 
         // Registra documento NoSQL (MongoDB) com estrutura JSON específica de criação de evento
         auditLogRepository.save(AuditLog.create(
@@ -92,12 +98,14 @@ public class EventService {
      */
     @Cacheable(value = CacheConfig.EVENT_BY_ID_CACHE, key = "#id")
     public Event getEventById(UUID id) {
+        log.debug("CACHE MISS: Buscando evento id={} no banco de dados", id);
         return eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Evento nao encontrado com ID: " + id));
     }
 
     @Cacheable(value = CacheConfig.EVENTS_LIST_CACHE, key = "#category != null ? #category.name() : 'ALL'")
     public List<Event> listEvents(EventCategory category) {
+        log.debug("CACHE MISS: Listando eventos no banco para category={}", category);
         return eventRepository.findAll(category);
     }
 
