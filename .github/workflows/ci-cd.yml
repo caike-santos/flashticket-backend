@@ -33,17 +33,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: "2. Configurar JDK 25 (Temurin) + Cache do Maven (~/.m2)"
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: "temurin"
           java-version: "25"
           cache: "maven"
 
-      - name: "3. Garantir permissão de execução no Maven Wrapper (mvnw)"
-        run: chmod +x mvnw
+      - name: "3. Garantir permissão de execução e quebras de linha LF no Maven Wrapper (mvnw)"
+        run: |
+          sed -i 's/\r$//' mvnw
+          chmod +x mvnw
 
-      - name: "4. Validar Dependency Hell (Maven Enforcer Plugin)"
-        run: ./mvnw -B enforcer:enforce
+      - name: "4. Validar Dependency Hell (Maven Enforcer Plugin na fase validate)"
+        run: ./mvnw -B validate
 
       - name: "5. Executar Suíte Completa de Testes de Integração (Fases 1 a 8)"
         run: ./mvnw -B test
