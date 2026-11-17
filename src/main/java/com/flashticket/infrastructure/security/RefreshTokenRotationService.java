@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,6 +30,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class RefreshTokenRotationService {
+
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenRotationService.class);
 
     private final Map<String, RefreshTokenRecord> tokenStore = new ConcurrentHashMap<>();
     private final JwtTokenService jwtTokenService;
@@ -65,6 +69,8 @@ public class RefreshTokenRotationService {
         // Solução: Revogar imediatamente TODOS os tokens da mesma família (familyId)!
         // =========================================================================
         if (existing.used()) {
+            log.error("ALERTA DE SEGURANCA: Reuso de Refresh Token detectado! Revogando familia={} (subject={})",
+                    existing.familyId(), existing.subject());
             revokeEntireFamily(existing.familyId(), existing.subject(), rawRefreshToken);
             throw new SecurityAuthenticationException(
                     "ALERTA DE SEGURANCA: Reuso de Refresh Token detectado! Toda a familia de tokens ("

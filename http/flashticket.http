@@ -502,3 +502,51 @@ Content-Type: application/json
   "amount": 250.00,
   "behavior": "HEALTHY_SUCCESS"
 }
+
+
+
+### ============================================================================
+### FASE 8: OBSERVABILIDADE (LOGS SLF4J/MDC & HEALTH CHECKS), GERENCIAMENTO DE
+###         MEMÓRIA JVM (STACK VS HEAP), GARBAGE COLLECTION, MEMORY LEAK E CLI
+### ============================================================================
+
+### 41. Logs Estruturados e MDC (Correlation-ID propagado em todas as classes e no Header)
+GET {{baseUrl}}/api/v2/observability/logs-mdc-demo
+X-Correlation-ID: trace-compra-show-001
+Accept: application/json
+
+### 42. Health Checks: Spring Boot Actuator (/actuator/health) + Health Check Customizado
+GET {{baseUrl}}/actuator/health
+Accept: application/json
+
+###
+GET {{baseUrl}}/api/v2/observability/health-custom
+Accept: application/json
+
+### 43. Inspecionar Memória da JVM ao vivo (Heap Young/Old Gen, Metaspace, Threads Stack e G1GC)
+GET {{baseUrl}}/api/v2/observability/jvm-memory
+Accept: application/json
+
+### 44. Simular Vazamento de Memória (Memory Leak: retém 5 MB em lista estática GC Root)
+POST {{baseUrl}}/api/v2/observability/memory-leak/simulate?megabytes=5
+Accept: application/json
+
+### 45. Corrigir Memory Leak (limpa referência estática e aciona Garbage Collector System.gc())
+POST {{baseUrl}}/api/v2/observability/memory-leak/fix-and-gc
+Accept: application/json
+
+### 46. CLI Administrativa com Picocli: Executar comandos ('stats --verbose', 'health', 'cancel-expired')
+POST {{baseUrl}}/api/v2/observability/cli
+Content-Type: application/json
+
+{
+  "args": ["stats", "--verbose"]
+}
+
+###
+POST {{baseUrl}}/api/v2/observability/cli
+Content-Type: application/json
+
+{
+  "args": ["health"]
+}

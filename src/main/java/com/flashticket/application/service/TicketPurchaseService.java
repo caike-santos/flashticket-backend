@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class TicketPurchaseService {
+
+    private static final Logger log = LoggerFactory.getLogger(TicketPurchaseService.class);
 
     private static final int RESERVATION_EXPIRATION_MINUTES = 15;
 
@@ -77,6 +81,7 @@ public class TicketPurchaseService {
 
         // 4. Demonstração prática da ATOMICIDADE (A do ACID):
         if (simulateFailureAfterStockDeduction) {
+            log.error("Falha critica simulada apos abater estoque do eventId={}! Acionando ROLLBACK ACID.", eventId);
             throw new IllegalStateException(
                     "Falha simulada apos abater estoque! O @Transactional fara ROLLBACK e devolvera o ingresso.");
         }
@@ -100,6 +105,8 @@ public class TicketPurchaseService {
 
         TicketOrderJpaEntity savedOrder = orderRepository.saveAndFlush(TicketOrderJpaEntity.fromDomain(order));
         TicketOrder result = savedOrder.toDomain();
+        log.info("Compra reservada (PENDING): orderId={}, eventId={}, quantity={}, remainingStock={}",
+                result.getId(), eventId, quantity, domainEvent.getAvailableTickets());
 
         // 6. Grava Documento NoSQL (MongoDB) com metadados específicos da compra de ingresso
         auditLogRepository.save(AuditLog.create(

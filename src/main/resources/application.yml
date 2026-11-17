@@ -58,6 +58,11 @@ management:
       probes:
         enabled: true
 
+# TÓPICO (Fase 8): Logs estruturados com MDC (Mapped Diagnostic Context) exibindo o Correlation-ID em cada linha!
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] [corrId=%X{correlationId:-SYSTEM}] %-5level %logger{36} - %msg%n"
+
 ---
 # Profile 'postgres' ou 'docker' para usar com os containers Docker (PostgreSQL + MongoDB + Redis)
 # Para ativar: .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=postgres"
