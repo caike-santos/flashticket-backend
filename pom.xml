@@ -13,9 +13,9 @@
 
     <groupId>com.flashticket</groupId>
     <artifactId>flashticket-backend</artifactId>
-    <!-- TÓPICO: Versionamento Semântico (SemVer: MAJOR.MINOR.PATCH) -->
-    <!-- 0.1.0-SNAPSHOT indica versão em desenvolvimento da primeira entrega (Fase 1) -->
-    <version>0.1.0-SNAPSHOT</version>
+    <!-- TÓPICO (Fase 1 & Fase 9): Versionamento Semântico (SemVer: MAJOR.MINOR.PATCH) -->
+    <!-- Promovido de 0.1.0-SNAPSHOT para 1.0.0 na entrega final estável da plataforma! -->
+    <version>1.0.0</version>
     <name>FlashTicket Backend</name>
     <description>Plataforma de Eventos, Ingressos e Pagamentos para treinamento completo de Engenharia Backend</description>
 

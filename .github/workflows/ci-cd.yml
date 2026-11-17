@@ -1,0 +1,83 @@
+name: FlashTicket CI/CD Pipeline
+
+# =============================================================================
+# TÓPICO (Fase 9): CI/CD (Continuous Integration & Continuous Delivery)
+# com GitHub Actions e Versionamento Semântico (SemVer v1.0.0)
+# =============================================================================
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+    tags:
+      - "v*.*.*"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  # ===========================================================================
+  # JOB 1: CONTINUOUS INTEGRATION (CI)
+  # Compila o código, valida árvore de dependências (Maven Enforcer) e executa
+  # toda a suíte de testes automatizados a cada Push ou Pull Request.
+  # ===========================================================================
+  ci-build-and-test:
+    name: "CI :: Build, Enforcer & Integration Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "1. Checkout do repositório Git"
+        uses: actions/checkout@v4
+
+      - name: "2. Configurar JDK 25 (Temurin) + Cache do Maven (~/.m2)"
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "25"
+          cache: "maven"
+
+      - name: "3. Garantir permissão de execução no Maven Wrapper (mvnw)"
+        run: chmod +x mvnw
+
+      - name: "4. Validar Dependency Hell (Maven Enforcer Plugin)"
+        run: ./mvnw -B enforcer:enforce
+
+      - name: "5. Executar Suíte Completa de Testes de Integração (Fases 1 a 8)"
+        run: ./mvnw -B test
+
+      - name: "6. Empacotar Artefato de Produção (JAR executável)"
+        run: ./mvnw -B package -DskipTests
+
+      - name: "7. Publicar JAR como Artefato do Pipeline"
+        uses: actions/upload-artifact@v4
+        with:
+          name: flashticket-backend-jar
+          path: target/*.jar
+          if-no-files-found: error
+
+  # ===========================================================================
+  # JOB 2: CONTINUOUS DELIVERY / RELEASE (CD)
+  # Só executa SE o Job 1 (CI) passar com sucesso E quando uma tag SemVer
+  # (ex: v1.0.0) é enviada para o GitHub!
+  # ===========================================================================
+  cd-github-release:
+    name: "CD :: Publish SemVer Release (v*.*.*)"
+    needs: ci-build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "1. Baixar JAR validado no estágio de CI"
+        uses: actions/download-artifact@v4
+        with:
+          name: flashticket-backend-jar
+          path: dist
+
+      - name: "2. Criar Release Oficial no GitHub com Changelog Automático"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.jar
+          generate_release_notes: true
